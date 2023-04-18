@@ -1,6 +1,6 @@
 CXXFLAGS = --std=c++14
 LDFLAGS = -lodb-pgsql -lodb -ljsoncpp -lboost_regex
-OBJECT = main.o dbconnector.o config.o db_api.o commandsIO.o db_types/debtor-odb.o db_types/operation-odb.o db_types/debtor.o db_types/operation.o
+OBJECT = main.o token_stream.o dbconnector.o config.o db_api.o commandsIO.o db_types/debtor-odb.o db_types/operation-odb.o db_types/debtor.o db_types/operation.o
 TARGET = main
 CC = g++
 
@@ -9,9 +9,6 @@ all: rec_make $(OBJECT)
 
 rec_make:
 	cd db_types && $(MAKE)
-
-driver.o: driver.cpp
-	g++ -c driver.cpp
 
 clean: $(wildcard *.o) $(wildcard db_types/*.o)
 	rm -f $(wildcard *.o) $(wildcard db_types/*.o)
