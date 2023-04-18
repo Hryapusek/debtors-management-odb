@@ -1,6 +1,9 @@
 #include "db_api.hpp"
 #include "dbconnector.hpp"
+#include "db_types/debtor.hpp"
 #include "db_types/debtor-odb.hxx"
+#include "db_types/operation.hpp"
+#include "db_types/operation-odb.hxx"
 #include <odb/pgsql/database.hxx>
 #include <odb/transaction.hxx>
 #include <odb/session.hxx>
@@ -62,10 +65,10 @@ namespace api
     auto &db = DbConnector::db;
     odb::session s;
     transaction t(db->begin());
-    auto dp = db->query_one< Debtor >(query< Debtor >::name == name);
-    if (dp == nullptr)
+    auto debtor = db->query_one< Debtor >(query< Debtor >::name == name);
+    if (debtor == nullptr)
       throw std::logic_error("User with name " + name + " was not found");
-    db->erase(db->load< Debtor>(dp->id()));
+    db->erase(db->load< Debtor >(debtor->id()));
     t.commit();
   }
 
@@ -78,7 +81,7 @@ namespace api
     t.commit();
   }
 
-  void addValue(std::string name, int val)
+  void addValue(const std::string &name, int val, const std::string &description)
   {
     auto &db = DbConnector::db;
     odb::session s;
@@ -86,8 +89,48 @@ namespace api
     auto debtor = db->load< Debtor >((db->query_value< Debtor >(query< Debtor >::name == name)).id());
     debtor->debt(debtor->debt() + val);
     db->update(debtor);
-    Operation op(debtor, val, 0, "test");
+    Operation op(debtor, val, 0, description);
     db->persist< Operation >(op);
     t.commit();
+  }
+
+  void rollback(const std::string &name)
+  {
+    auto &db = DbConnector::db;
+    odb::session s;
+    transaction t(db->begin());
+    auto debtor = db->query_one< Debtor >(query< Debtor >::name == name);
+    if (debtor == nullptr)
+      throw std::logic_error("User with name " + name + " was not found");
+    const auto &operations = debtor->operations();
+    if (operations.empty())
+      throw std::logic_error("Can not rollback: no operations found");
+    std::shared_ptr< Operation > lastOperationPtr = operations.back().lock();
+    if (!lastOperationPtr)
+      throw std::logic_error("rollback(const std::string &name): empty shared_ptr");
+    int valChange = lastOperationPtr->valueChange();
+    debtor->debt(debtor->debt() - valChange);
+    db->update(debtor);
+    db->erase< Operation >(lastOperationPtr);
+    t.commit();
+  }
+
+  std::vector< Operation > getOperations(const std::string &name)
+  {
+    auto &db = DbConnector::db;
+    Debtor d;
+    {
+      auto res = getDebtor(name);
+      if (!res)
+        throw std::logic_error("User with name " + name + " was not found");
+      d = res.get();
+    }
+    odb::session s;
+    transaction t(db->begin());
+    result< Operation > res(db->query< Operation >(query< Operation >::debtor == d.id()));
+    std::vector< Operation > operations;
+    std::copy(res.begin(), res.end(), std::back_inserter(operations));
+    t.commit();
+    return operations;
   }
 }

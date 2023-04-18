@@ -14,7 +14,9 @@ namespace api
   void addDebtor(Debtor d);
   void removeDebtor(const std::string &name);
   void removeDebtor(unsigned long id);
-  void addValue(std::string name, int val);
+  void addValue(const std::string &name, int val, const std::string &description = "");
+  void rollback(const std::string &name);
+  std::vector< Operation > getOperations(const std::string &name);
 }
 
 #endif
