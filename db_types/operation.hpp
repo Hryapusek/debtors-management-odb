@@ -20,7 +20,7 @@ public:
 
   std::shared_ptr<Debtor> debtor() const { return debtor_; };
 
-  long long int time() const { return time_; }
+  long long int getTime() const { return time_; }
 
   inline int valueChange() const { return valueChange_; }
 
