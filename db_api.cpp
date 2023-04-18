@@ -86,7 +86,9 @@ namespace api
     auto &db = DbConnector::db;
     odb::session s;
     transaction t(db->begin());
-    auto debtor = db->load< Debtor >((db->query_value< Debtor >(query< Debtor >::name == name)).id());
+    auto debtor = db->query_one< Debtor >(query< Debtor >::name == name);
+    if (debtor == nullptr)
+      throw std::logic_error("User with name " + name + " was not found");
     debtor->debt(debtor->debt() + val);
     db->update(debtor);
     Operation op(debtor, val, 0, description);
