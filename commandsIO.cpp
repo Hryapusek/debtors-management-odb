@@ -1,7 +1,9 @@
 #include "commandsIO.hpp"
 #include "db_types/debtor.hpp"
 #include "db_api.hpp"
+#include "token_stream.hpp"
 #include <iostream>
+#include <iomanip>
 #include <vector>
 #include <iterator>
 #include <boost/regex.hpp>
@@ -11,45 +13,9 @@ using str = std::string;
 
 namespace
 {
-  bool isNum(const std::string &num)
+  void printDebtorNotFoundWarning(const str &name)
   {
-    try
-    {
-      std::stoi(num);
-      return true;
-    }
-    catch (const std::exception &e)
-    {
-      return false;
-    }
-  }
-
-  bool checkIfNum(const std::string &num, const std::string &intro = "")
-  {
-    if (!isNum(num))
-    {
-      std::cerr << intro << ": Invalid number\n";
-      std::cerr << "Number: " << num << '\n';
-      return false;
-    }
-    return true;
-  }
-
-  bool isName(const std::string &name)
-  {
-    boost::regex ex("[a-zA-Zа-яА-Я]{2,20}");
-    return boost::regex_match(name, ex);
-  }
-
-  bool checkIfName(const std::string &name, const std::string &intro = "")
-  {
-    if (!isName(name))
-    {
-      std::cerr << intro << ": Invalid name of a debtor\n";
-      std::cerr << "Name: " << name << '\n';
-      return false;
-    }
-    return true;
+    std::cerr << "WARNING: Debtor with name " << name << " was not found" << '\n';
   }
 
   std::ostream &operator<<(std::ostream &out, Debtor d)
@@ -70,7 +36,7 @@ namespace
   {
     if (in.eof())
       return false;
-    std::string tempCommand;
+    str tempCommand;
     in >> tempCommand;
     if (in.fail())
       return false;
@@ -79,7 +45,7 @@ namespace
     auto tempArgs = std::vector< str >();
     {
       skipWs(in);
-      std::string word;
+      str word;
       while (!in.eof() && in.peek() != '\n')
       {
         in >> word;
@@ -107,10 +73,12 @@ namespace
   {
     std::cout << "show - lists all debtors\n";
     std::cout << "show :name: :name: ... - prints information about debtors\n";
-    std::cout << "new :name: [:surname:] [:debtValue:] - creates new debtor\n";
-    std::cout << "add :name: :valueChange: - adds value to Debtor's, could be negative\n";
+    std::cout << "new :name: [:debtValue:] ... - creates new debtor\n";
+    std::cout << "add :name: :valueChange: ... - adds values to Debtors, could be negative\n";
     std::cout << "rm :name: :name: ... - removes debtors from table\n";
-    std::cout << "NOTE: use first\\ last to remove double word names\n";
+    std::cout << "rollback :name: :name: ... - rollback last operation on users\n";
+    std::cout << "hist :name: [:n:] :name: ... - show history of last n operations. Default 5\n";
+    std::cout << "NOTE use first\\ last to pass multiword names\n";
   }
 
   void show(const std::vector< str > &args, std::ostream &out = std::cout)
@@ -120,126 +88,144 @@ namespace
       showAll();
       return;
     }
-    for (auto it = args.begin(); it != args.end(); ++it)
+    TokenStream ts(args);
+    while (!ts.eof())
     {
-      auto res = api::getDebtor(*it);
+      std::string name = ts.readName();
+      if (ts.fail())
+      {
+        std::cerr << "Name " << name << " " << *ts.base() << " is incorrect\n";
+        break;
+      }
+      auto res = api::getDebtor(name);
       if (res)
         out << *res << '\n';
       else
-        std::cerr << "Debtor with name " << *it << " was not found" << '\n';
+        printDebtorNotFoundWarning(name);
     }
   }
 
   void newDebtor(const std::vector< str > &args)
   {
-    //size == 1 -> debt(0) & name(args[0])
-    //size == 2 -> debt(args[1] or 0) & name(args[0] || args[0] + " " + args[1])
-    //size == 3 -> debt(args[3]) & name(args[0] + " " + args[1])
-    if (args.size() > 3 || args.size() == 0)
-    {
-      std::cerr << "Invalid number of arguments to create a debtor\n";
-      std::cerr << "Args: ";
-      std::copy(args.begin(), args.end(), std::ostream_iterator< str >(std::cerr, " "));
-      std::cerr << '\n';
-      return;
-    }
     Debtor d;
-    if (!checkIfName(args[0]))
-      return;
-    switch (args.size())
-    {
-    case 1:
-    {
-      d.name(args[0]);
-      d.debt(0);
-      break;
-    }
-
-    case 2:
-    {
-      if (isName(args[1]))
-      {
-        d.name(args[0] + " " + args[1]);
-        d.debt(0);
-      }
-      else
-      {
-        d.name(args[0]);
-        if (!checkIfNum(args[1], "Invalid debtor's value"))
-          return;
-        d.debt(std::stoi(args[1]));
-      }
-      break;
-    }
-
-    case 3:
-    {
-      if (!checkIfName(args[1]))
-        return;
-      d.name(args[0] + " " + args[1]);
-      if (!checkIfNum(args[2], "Invalid debtor's value"))
-        return;
-      d.debt(std::stoi(args[2]));
-      break;
-    }
-    }
+    TokenStream ts(args);
     try
     {
-      api::addDebtor(d);
+      while (ts)
+      {
+        d = ts.readDebtor();
+        if (ts.fail())
+        {
+          std::cerr << "Unexpected token \"" << *ts.base() << "\"\n";
+          break;
+        }
+        api::addDebtor(d);
+        std::cout << "Debtor with name " << d.name() << " added successfully!\n";
+      }
     }
     catch (const odb::database_exception &e)
     {
-      std::cerr << "Debtor with name " << d.name() << " already exists!\n";
+      std::cerr << "WANING: Debtor with name " << d.name() << " already exists!\n";
     }
   }
 
   void addValue(const std::vector< str > &args)
   {
-    if (args.size() != 2)
+    Debtor d;
+    TokenStream ts(args);
+    while (ts)
     {
-      std::cerr << "Invalid arguments count for addValue command\n";
-      return;
-    }
-    checkIfName(args[0], "addValue - invalid name");
-    checkIfNum(args[1], "addValue - invalid value");
-    try
-    {
-      api::addValue(args[0], std::stoi(args[1]));
-      std::cout << "Added " << args[1] << " to " << args[0] << '\n';
-    }
-    catch (const odb::object_not_persistent &e)
-    {
-      std::cerr << "Debtor with name " << args[0] << " was not found\n";
+      d = ts.readDebtor();
+      if (ts.fail())
+      {
+        std::cerr << "Unexpected token \"" << *ts.base() << "\"\n";
+        break;
+      }
+      try
+      {
+        api::addValue(d.name(), d.debt());
+        std::cout << "Added " << d.debt() << " to " << d.name() << " successfully" << '\n';
+      }
+      catch (const odb::object_not_persistent &e)
+      {
+        printDebtorNotFoundWarning(d.name());
+      }
     }
   }
 
   void removeDebtor(const std::vector< str > &args)
   {
-    std::string doubleWordName;
-    bool addPrevWord = false;
-    for (auto it = args.begin(); it != args.end(); ++it)
+    Debtor d;
+    TokenStream ts(args);
+    while (ts)
     {
-      std::reference_wrapper< const std::string > res = *it;
-      if (addPrevWord)
+      d = ts.readDebtor();
+      if (ts.fail())
       {
-        doubleWordName += " " + *it;
-        res = doubleWordName;
-        addPrevWord = false;
-      }
-      else if (it->back() == '\\')
-      {
-        doubleWordName = it->substr(0, it->size() - 1);
-        addPrevWord = true;
-        continue;
+        std::cerr << "Unexpected token \"" << *ts.base() << "\"\n";
+        break;
       }
       try
       {
-        api::removeDebtor(res.get());
-        std::cout << res.get() << " removed successfully\n";
+        api::removeDebtor(d.name());
+        std::cout << d.name() << " removed successfully\n";
       }
       catch (const std::logic_error &e)
       {
-        std::cerr << "Debtor with name " << res.get() << " was not found" << '\n';
+        printDebtorNotFoundWarning(d.name());
+      }
+    }
+  }
+
+  void rollback(const std::vector< str > &args)
+  {
+    Debtor d;
+    TokenStream ts(args);
+    while (ts)
+    {
+      d = ts.readDebtor();
+      if (ts.fail())
+      {
+        std::cerr << "Unexpected token \"" << *ts.base() << "\"\n";
+        break;
+      }
+      try
+      {
+        api::rollback(d.name());
+      }
+      catch (const std::logic_error &e)
+      {
+        printDebtorNotFoundWarning(d.name());
+      }
+    }
+  }
+
+  void history(const std::vector< str > &args)
+  {
+    Debtor d{ "", 0 };
+    TokenStream ts(args);
+    while (ts)
+    {
+      d = ts.readDebtor();
+      if (ts.fail())
+      {
+        std::cerr << "Unexpected token \"" << *ts.base() << "\"\n";
+        break;
+      }
+      int nOperations = d.debt() <= 0 ? 5 : d.debt();
+      try
+      {
+        const auto &operations = api::getOperations(d.name());
+        for (auto it = operations.rbegin(); it != operations.rend() && nOperations > 0; ++it, --nOperations)
+        {
+          time_t t = it->time();
+          std::cout << "Value change: " << std::setw(8) << it->valueChange() << ", Timestamp: " << std::setw(24) << ctime(std::addressof(t));
+        }
+      }
+      catch (const std::logic_error &e)
+      {
+        printDebtorNotFoundWarning(d.name());
+        continue;
       }
     }
   }
@@ -248,6 +234,7 @@ namespace
 
 void processInput(std::istream &in)
 {
+  std::cin.exceptions(std::cin.exceptions() | std::ios_base::badbit);
   while (in && !in.eof())
   {
     str cmd;
@@ -255,10 +242,6 @@ void processInput(std::istream &in)
     std::cout << "\n-> ";
     while (getCommandAndArgs(in, cmd, args))
     {
-      /*std::cout << "Command: " << cmd << '\n';
-         std::cout << "Args: ";
-         std::copy(args.begin(), args.end(), std::ostream_iterator< str >(std::cout, " "));
-       */
       std::cout << '\n';
       if (cmd == "show")
         show(args);
@@ -270,6 +253,10 @@ void processInput(std::istream &in)
         removeDebtor(args);
       else if (cmd == "add")
         addValue(args);
+      else if (cmd == "rollback")
+        rollback(args);
+      else if (cmd == "history")
+        history(args);
       std::cout << "\n-> ";
     }
   }
