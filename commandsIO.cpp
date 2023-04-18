@@ -74,7 +74,7 @@ namespace
     std::cout << "show - lists all debtors\n";
     std::cout << "show :name: :name: ... - prints information about debtors\n";
     std::cout << "new :name: [:debtValue:] ... - creates new debtor\n";
-    std::cout << "add :name: :valueChange: ... - adds values to Debtors, could be negative\n";
+    std::cout << "addVal :name: :valueChange: ... - adds values to Debtors, could be negative\n";
     std::cout << "rm :name: :name: ... - removes debtors from table\n";
     std::cout << "rollback :name: :name: ... - rollback last operation on users\n";
     std::cout << "hist :name: [:n:] :name: ... - show history of last n operations. Default 5\n";
@@ -146,7 +146,7 @@ namespace
         api::addValue(d.name(), d.debt());
         std::cout << "Added " << d.debt() << " to " << d.name() << " successfully" << '\n';
       }
-      catch (const odb::object_not_persistent &e)
+      catch (const std::logic_error &e)
       {
         printDebtorNotFoundWarning(d.name());
       }
@@ -218,7 +218,7 @@ namespace
         const auto &operations = api::getOperations(d.name());
         for (auto it = operations.rbegin(); it != operations.rend() && nOperations > 0; ++it, --nOperations)
         {
-          time_t t = it->time();
+          time_t t = it->getTime();
           std::cout << "Value change: " << std::setw(8) << it->valueChange() << ", Timestamp: " << std::setw(24) << ctime(std::addressof(t));
         }
       }
@@ -234,6 +234,7 @@ namespace
 
 void processInput(std::istream &in)
 {
+  help();
   std::cin.exceptions(std::cin.exceptions() | std::ios_base::badbit);
   while (in && !in.eof())
   {
@@ -251,7 +252,7 @@ void processInput(std::istream &in)
         help();
       else if (cmd == "rm")
         removeDebtor(args);
-      else if (cmd == "add")
+      else if (cmd == "addVal")
         addValue(args);
       else if (cmd == "rollback")
         rollback(args);
