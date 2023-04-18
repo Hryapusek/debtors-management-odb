@@ -20,8 +20,10 @@ public:
   inline str_c &name() const { return name_; };
   void name(str_c &n) { name_ = n; };
 
-  inline int debt() const { return debt_; };
+  inline int debt() const { return debt_; }
   void debt(int d) { debt_ = d; };
+
+  inline const std::vector<std::weak_ptr<Operation> > &operations() { return operations_; }
 
   inline unsigned long id() const { return id_; }
 
