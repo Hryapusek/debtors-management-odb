@@ -18,6 +18,12 @@ public:
 
   inline unsigned long id() const { return id_; }
 
+  std::shared_ptr<Debtor> debtor() const { return debtor_; };
+
+  long long int time() const { return time_; }
+
+  inline int valueChange() const { return valueChange_; }
+
 private:
 
   friend class odb::access; // (4)
