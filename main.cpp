@@ -7,8 +7,6 @@
 #include "config.hpp"
 #include "dbconnector.hpp"
 
-#include "db_api.hpp"
-
 #include "commandsIO.hpp"
 
 int main (int argc, char *argv[])
