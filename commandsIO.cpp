@@ -2,6 +2,8 @@
 #include "db_types/debtor.hpp"
 #include "db_api.hpp"
 #include "token_stream.hpp"
+#include "tabulate.hpp"
+#include "ioctl.hpp"
 #include <iostream>
 #include <iomanip>
 #include <vector>
@@ -13,6 +15,11 @@ using str = std::string;
 
 namespace
 {
+  void printErrorReadingDebtor(TokenStream &ts)
+  {
+    std::cerr << "Error occured while trying to read next debtor.\nSkipping the rest...\n";
+  }
+
   void printDebtorNotFoundWarning(const str &name)
   {
     std::cerr << "WARNING: Debtor with name " << name << " was not found" << '\n';
@@ -25,240 +32,226 @@ namespace
     return out;
   }
 
-  //Skips isspace(in.peek()) but new line
-  void skipWs(std::istream &in)
-  {
-    while (!in.eof() && in.peek() != '\n' && isspace(in.peek()))
-      in.ignore(1);
-  }
-
-  bool getCommandAndArgs(std::istream &in, str &command, std::vector< str > &args)
-  {
-    if (in.eof())
-      return false;
-    str tempCommand;
-    in >> tempCommand;
-    if (in.fail())
-      return false;
-    if (tempCommand[0] == '/')
-      tempCommand = tempCommand.substr(1);
-    auto tempArgs = std::vector< str >();
-    {
-      skipWs(in);
-      str word;
-      while (!in.eof() && in.peek() != '\n')
-      {
-        in >> word;
-        skipWs(in);
-        tempArgs.push_back(word);
-      }
-    }
-    args = std::move(tempArgs);
-    command = std::move(tempCommand);
-    return true;
-  }
-
-  void showAll()
+  void getAllDebtors(tabulate::Table &debtorsTable)
   {
     auto res = api::getDebtors();
     for (const auto &p : res)
     {
-      std::cout << p;
-      if (&p != &res.back())
-        std::cout << '\n';
+      debtorsTable.add_row({ std::to_string(p.id()), p.name(), std::to_string(p.debt()) });
+    }
+  }
+
+  void getDebtorsFromStream(tabulate::Table &debtorsTable, TokenStream &ts)
+  {
+    while (ts)
+    {
+      DebtorIO dIO;
+      ts >> dIO;
+      if (ts.fail())
+      {
+        printErrorReadingDebtor(ts);
+        break;
+      }
+      boost::optional< Debtor > res = helpersIO::getDebtor(dIO);
+      if (res)
+        debtorsTable.add_row({ std::to_string(res->id()), res->name(), std::to_string(res->debt()) });
+      else
+        printDebtorNotFoundWarning(dIO->name());
     }
   }
 
   void help()
   {
-    std::cout << "show - lists all debtors\n";
-    std::cout << "show :name: :name: ... - prints information about debtors\n";
-    std::cout << "new :name: [:debtValue:] ... - creates new debtor\n";
-    std::cout << "addVal :name: :valueChange: ... - adds values to Debtors, could be negative\n";
-    std::cout << "rm :name: :name: ... - removes debtors from table\n";
-    std::cout << "rollback :name: :name: ... - rollback last operation on users\n";
-    std::cout << "hist :name: [:n:] :name: ... - show history of last n operations. Default 5\n";
-    std::cout << "NOTE use first\\ last to pass multiword names\n";
+    std::cout << "\tNOTE:\n\tOperation - {id, \"name\", value, [\"description\"]}\n";
+    std::cout << "\tDebtor - {id, \"name\", debt}\n";
+    std::cout << "\tid or name can be ommited in some commands\n\n";
+    std::cout << "showAll - lists all debtors\n";
+    std::cout << "show Debtor Debtor ... - prints information about debtors\n";
+    std::cout << "new Debtor Debtor ... - creates new debtor\n";
+    std::cout << "addVal Operation Operation ... - adds values to Debtors, could be negative\n";
+    std::cout << "rm Debtor Debtor ... - removes debtors from table\n";
+    std::cout << "rollback Debtor Debtor ... - rollback last operation on users\n";
+    std::cout << "hist Debtor Debtor ... - show history of last n operations. Debt is considered as n. Default n is 5\n";
   }
 
-  void show(const std::vector< str > &args, std::ostream &out = std::cout)
+  void showAll(TokenStream &ts, std::ostream &out = std::cout)
   {
-    if (args.size() == 0)
-    {
-      showAll();
-      return;
-    }
-    TokenStream ts(args);
-    while (!ts.eof())
-    {
-      std::string name = ts.readName();
-      if (ts.fail())
-      {
-        std::cerr << "Name " << name << " " << *ts.base() << " is incorrect\n";
-        break;
-      }
-      auto res = api::getDebtor(name);
-      if (res)
-        out << *res << '\n';
-      else
-        printDebtorNotFoundWarning(name);
-    }
+    tabulate::Table debtorsTable;
+    debtorsTable.add_row({ "ID", "Debtor", "Value" });
+    getAllDebtors(debtorsTable);
+    out << debtorsTable << '\n';
   }
 
-  void newDebtor(const std::vector< str > &args)
+  void show(TokenStream &ts, std::ostream &out = std::cout)
   {
-    Debtor d;
-    TokenStream ts(args);
+    tabulate::Table debtorsTable;
+    debtorsTable.add_row({ "ID", "Debtor", "Value" });
+    getDebtorsFromStream(debtorsTable, ts);
+    out << debtorsTable << '\n';
+  }
+
+  void newDebtor(TokenStream &ts)
+  {
+    DebtorIO dIO;
     try
     {
       while (ts)
       {
-        d = ts.readDebtor();
-        if (ts.fail())
+        ts >> dIO;
+        if (ts.fail() || !(dIO.readFields & dIO.NAME))
         {
-          std::cerr << "Unexpected token \"" << *ts.base() << "\"\n";
+          printErrorReadingDebtor(ts);
           break;
         }
-        api::addDebtor(d);
-        std::cout << "Debtor with name " << d.name() << " added successfully!\n";
+        api::addDebtor(dIO.debtor);
+        std::cout << "Debtor with name " << dIO->name() << " added successfully!\n";
       }
     }
     catch (const odb::database_exception &e)
     {
-      std::cerr << "WANING: Debtor with name " << d.name() << " already exists!\n";
+      std::cerr << "WANING: Debtor with name " << dIO->name() << " already exists!\n";
     }
   }
 
-  void addValue(const std::vector< str > &args)
+  void addValue(TokenStream &ts)
+  { //value expected
+    OperationIO opIO;
+    while (ts)
+    {
+      ts >> opIO;
+      if (ts.fail())
+      {
+        printErrorReadingDebtor(ts);
+        break;
+      }
+      try
+      {
+        helpersIO::addValue(opIO);
+        std::cout << "Value " << opIO.valueChange << " successfully added to "
+                  << opIO.id << " " << opIO.name << '\n';
+      }
+      catch (const api::debtor_not_found &e)
+      {
+        printDebtorNotFoundWarning(opIO.name);
+      }
+    }
+  }
+
+  void removeDebtor(TokenStream &ts)
+  {
+    DebtorIO dIO;
+    while (ts)
+    {
+      ts >> dIO;
+      if (ts.fail())
+      {
+        printErrorReadingDebtor(ts);
+        break;
+      }
+      try
+      {
+        helpersIO::removeDebtor(dIO);
+        std::cout << dIO->id() << " " << dIO->name() << " removed successfully\n";
+      }
+      catch (const api::debtor_not_found &e)
+      {
+        printDebtorNotFoundWarning(dIO->name());
+      }
+    }
+  }
+
+  void rollback(TokenStream &ts)
+  {
+    DebtorIO dIO;
+    while (ts)
+    {
+      ts >> dIO;
+      if (ts.fail())
+      {
+        printErrorReadingDebtor(ts);
+        break;
+      }
+      try
+      {
+        helpersIO::rollback(dIO);
+        std::cout << "Successfully rollbacked " << dIO->id() << " " << dIO->name() << "\n";
+      }
+      catch (const api::debtor_not_found &e)
+      {
+        printDebtorNotFoundWarning(dIO->name());
+      }
+    }
+  }
+
+  void history(TokenStream &ts)
   {
     Debtor d;
-    TokenStream ts(args);
+    DebtorIO dIO{ d };
+    tabulate::Table operationsTable;
+    operationsTable.add_row({ "Debtor", "Value change", "Timestamp", "Description" });
     while (ts)
     {
-      d = ts.readDebtor();
+      ts >> dIO;
       if (ts.fail())
       {
-        std::cerr << "Unexpected token \"" << *ts.base() << "\"\n";
+        printErrorReadingDebtor(ts);
         break;
       }
+      int nOperations = dIO->debt() <= 0 ? 5 : dIO->debt();
       try
       {
-        api::addValue(d.name(), d.debt());
-        std::cout << "Added " << d.debt() << " to " << d.name() << " successfully" << '\n';
-      }
-      catch (const std::logic_error &e)
-      {
-        printDebtorNotFoundWarning(d.name());
-      }
-    }
-  }
-
-  void removeDebtor(const std::vector< str > &args)
-  {
-    Debtor d;
-    TokenStream ts(args);
-    while (ts)
-    {
-      d = ts.readDebtor();
-      if (ts.fail())
-      {
-        std::cerr << "Unexpected token \"" << *ts.base() << "\"\n";
-        break;
-      }
-      try
-      {
-        api::removeDebtor(d.name());
-        std::cout << d.name() << " removed successfully\n";
-      }
-      catch (const std::logic_error &e)
-      {
-        printDebtorNotFoundWarning(d.name());
-      }
-    }
-  }
-
-  void rollback(const std::vector< str > &args)
-  {
-    Debtor d;
-    TokenStream ts(args);
-    while (ts)
-    {
-      d = ts.readDebtor();
-      if (ts.fail())
-      {
-        std::cerr << "Unexpected token \"" << *ts.base() << "\"\n";
-        break;
-      }
-      try
-      {
-        api::rollback(d.name());
-      }
-      catch (const std::logic_error &e)
-      {
-        printDebtorNotFoundWarning(d.name());
-      }
-    }
-  }
-
-  void history(const std::vector< str > &args)
-  {
-    Debtor d{ "", 0 };
-    TokenStream ts(args);
-    while (ts)
-    {
-      d = ts.readDebtor();
-      if (ts.fail())
-      {
-        std::cerr << "Unexpected token \"" << *ts.base() << "\"\n";
-        break;
-      }
-      int nOperations = d.debt() <= 0 ? 5 : d.debt();
-      try
-      {
-        const auto &operations = api::getOperations(d.name());
+        std::vector< Operation > operations = helpersIO::getOperations(dIO);
         for (auto it = operations.rbegin(); it != operations.rend() && nOperations > 0; ++it, --nOperations)
         {
           time_t t = it->getTime();
-          std::cout << "Value change: " << std::setw(8) << it->valueChange() << ", Timestamp: " << std::setw(24) << ctime(std::addressof(t));
+          operationsTable.add_row({ dIO.readFields & dIO.NAME ? dIO->name() : std::to_string(dIO->id()), std::to_string(it->valueChange()), ctime(std::addressof(t)), it->description() });
         }
       }
-      catch (const std::logic_error &e)
+      catch (const api::debtor_not_found &e)
       {
-        printDebtorNotFoundWarning(d.name());
+        printDebtorNotFoundWarning(dIO->name());
         continue;
       }
     }
+    std::cout << operationsTable << '\n';
   }
 }
-
 
 void processInput(std::istream &in)
 {
   help();
-  std::cin.exceptions(std::cin.exceptions() | std::ios_base::badbit);
+  in.exceptions(std::cin.exceptions() | std::ios_base::badbit);
+  TokenStream ts(in);
   while (in && !in.eof())
   {
     str cmd;
-    std::vector< str > args;
     std::cout << "\n-> ";
-    while (getCommandAndArgs(in, cmd, args))
+    ts >> CommandIO{ cmd };
+    if (ts.fail() && ts.eof())
     {
-      std::cout << '\n';
-      if (cmd == "show")
-        show(args);
-      else if (cmd == "new")
-        newDebtor(args);
-      else if (cmd == "help")
-        help();
-      else if (cmd == "rm")
-        removeDebtor(args);
-      else if (cmd == "addVal")
-        addValue(args);
-      else if (cmd == "rollback")
-        rollback(args);
-      else if (cmd == "history")
-        history(args);
-      std::cout << "\n-> ";
+      break;
+    }
+    std::cout << '\n';
+    if (cmd == "show")
+      show(ts);
+    else if (cmd == "showAll")
+      showAll(ts);
+    else if (cmd == "new")
+      newDebtor(ts);
+    else if (cmd == "help")
+      help();
+    else if (cmd == "rm")
+      removeDebtor(ts);
+    else if (cmd == "addVal")
+      addValue(ts);
+    else if (cmd == "rollback")
+      rollback(ts);
+    else if (cmd == "hist")
+      history(ts);
+    if (ts.fail())
+    {
+      ts.clear();
+      ts.skipRestLine();
     }
   }
 }
