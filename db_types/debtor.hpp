@@ -77,7 +77,7 @@ private:
   #pragma db id auto
   unsigned long id_;
 
-  #pragma db not_null
+  #pragma db not_null type("VARCHAR(40)")
   std::string name_;
   
   #pragma db not_null
