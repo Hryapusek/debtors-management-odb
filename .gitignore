@@ -32,6 +32,7 @@
 *.app
 .vscode
 main
+debtsProg
 
 html
 latex
