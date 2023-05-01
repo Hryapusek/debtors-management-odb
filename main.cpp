@@ -4,10 +4,11 @@
 
 #include <jsoncpp/json/json.h>
 
-#include "config.hpp"
-#include "dbconnector.hpp"
+#include "config/config.hpp"
+#include "db_api/dbconnector.hpp"
 
-#include "commandsIO.hpp"
+#include "commandsIO/commandsIO.hpp"
+#include "ioctl/token_stream.hpp"
 
 int main (int argc, char *argv[])
 {
@@ -16,6 +17,7 @@ int main (int argc, char *argv[])
   std::cout << "\nConfig readed.\n";
   DbConnector::initConnection(config);
   std::cout << "Database initialized.\n";
-  processInput(std::cin);
+  TokenStream ts(std::cin);
+  processInput(ts, std::cout);
   return 0;
 }
