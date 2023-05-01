@@ -17,10 +17,10 @@ This program helps to manipulate debtors in database tables. You can create peop
 You can display all people using `showall` and some of them using `show {"Name1"} {"Name2"} {ID_3}`
 
 ### Note
-You can always type `help` to display all commands.
-You dont have to put '/' in the command beginning.
-Commands are not case sensetive
-If you have any questions about this one - vk.com/hryapusek.
+You can always type `help` to display all commands.<br />
+You dont have to put '/' in the command beginning.<br />
+Commands are not case sensetive<br />
+If you have any questions about this one - vk.com/hryapusek.<br />
 
 ## Libraries
 * boost
