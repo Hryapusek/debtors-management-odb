@@ -1,9 +1,9 @@
 #include "db_api.hpp"
 #include "dbconnector.hpp"
-#include "db_types/debtor.hpp"
-#include "db_types/debtor-odb.hxx"
-#include "db_types/operation.hpp"
-#include "db_types/operation-odb.hxx"
+#include "../db_types/debtor.hpp"
+#include "../db_types/debtor-odb.hxx"
+#include "../db_types/operation.hpp"
+#include "../db_types/operation-odb.hxx"
 #include <odb/pgsql/database.hxx>
 #include <odb/transaction.hxx>
 #include <odb/session.hxx>

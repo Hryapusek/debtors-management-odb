@@ -4,7 +4,8 @@
 #include <vector>
 #include <string>
 #include <boost/optional.hpp>
-#include "db_types/debtor.hpp"
+#include "../db_types/debtor.hpp"
+
 /**
  * @defgroup database_api Database API
  * This module contains all functions that directly interract with database.
@@ -35,6 +36,7 @@ namespace api
       return msg_.c_str();
     }
   };
+  
   /**
    * @brief Gets vector of all Debtors from "Debtors" table. Can be empty.
    * @throws Exceptions tied with database connection.
@@ -42,6 +44,7 @@ namespace api
    * @ingroup database_api
    */
   std::vector< Debtor > getDebtors();
+  
   /**
    * @ingroup database_api
    * @brief Gets debtor by \b name from "Debtors" table.
@@ -51,6 +54,7 @@ namespace api
    * @return If exists returns Debtor with this name, otherwise boost::none.
    */
   boost::optional< Debtor > getDebtor(const std::string &name);
+  
   /**
    * @ingroup database_api
    * @brief Gets debtor by \b ID from "Debtors" table.
@@ -58,6 +62,7 @@ namespace api
    * @overload
    */
   boost::optional< Debtor > getDebtor(unsigned long id);
+  
   /**
    * @ingroup database_api
    * @brief Tries to insert given Debtor into "Debtors" table.
@@ -67,6 +72,7 @@ namespace api
    * @param[in] d Debtor to be inserted.
    */
   void addDebtor(Debtor d);
+  
   /**
    * @ingroup database_api
    * @brief Tries to remove debtor with given name.
@@ -77,6 +83,7 @@ namespace api
    * @param[in] name Name of the debtor to remove.
    */
   void removeDebtor(const std::string &name);
+  
   /**
    * @ingroup database_api
    * @brief Tries to remove debtor with given id.
@@ -84,6 +91,7 @@ namespace api
    * @overload
    */
   void removeDebtor(unsigned long id);
+  
   /**
    * @ingroup database_api
    * @brief Adds value to the debtor with given name. Value can be negative.
@@ -98,6 +106,7 @@ namespace api
    * @param description Description of the operation. Empty by default.
    */
   void addValue(const std::string &name, int val, const std::string &description = "");
+  
   /**
    * @ingroup database_api
    * @brief Adds value to the debtor with given ID. Value can be negative.
@@ -105,6 +114,7 @@ namespace api
    * @overload
    */
   void addValue(unsigned int id, int val, const std::string &description = "");
+  
   /**
    * @ingroup database_api
    * @brief Tries to rollback last operation attached to debtor with given name.
@@ -116,6 +126,7 @@ namespace api
    * @param[in] name Name of the debtor to rollback.
    */
   void rollback(const std::string &name);
+  
   /**
    * @ingroup database_api
    * @brief Tries to rollback last operation attached to debtor with given ID.
@@ -123,6 +134,7 @@ namespace api
    * @overload
    */
   void rollback(unsigned int id);
+  
   /**
    * @ingroup database_api
    * @brief Tries to get operations of the debtor with given name.
@@ -133,6 +145,7 @@ namespace api
    * @return Vector with debtor's operations.
    */
   std::vector< Operation > getOperations(const std::string &name);
+  
   /**
    * @ingroup database_api
    * @brief Tries to get operations of the debtor with given ID.
