@@ -3,8 +3,9 @@
 #include <vector>
 #include <string>
 #include <iostream>
-#include "ioctl.hpp"
-#include "db_types/debtor.hpp"
+#include "private/ioctl.hpp"
+#include "../db_types/debtor.hpp"
+#include "../commandsIO/token_stream_interface.hpp"
 
 /**
  * @ingroup ioctl
@@ -12,67 +13,48 @@
  * @details It is much more comfortable to have class TokenStream
  *    to control input. Mostly used in commandsIO.cpp file.
  */
-class TokenStream
+class TokenStream : public TokenStreamInterface
 {
 public:
-/**
- * @brief Construct a new Token Stream object
- * 
- * @param[in] in istream with commands and arguments.
- */
   TokenStream(std::istream &in) : in_(in) {}
   TokenStream(const TokenStream &) = delete;
   TokenStream(TokenStream &&) = delete;
-  /**
-   * @brief This one reads Debtor from stream in format
-   *  {id, "name", debt}. One of id, name can be ommited. Debt also can be ommited. 
-   * 
-   * @param[in, out] d DebtorIO struct that will contain data. 
-   * @return Stream to continue work with it.
-   */
-  TokenStream &operator>>(DebtorIO &d);
-  /**
-   * @brief Reads command from stream. Returns eof and no fail if eof of stream was met.
-   * 
-   * @param[in, out] cmd CommandIO struct used to wrap std::string command.
-   * @return Stream to continue work with it.
-   */
-  TokenStream &operator>>(CommandIO cmd);
-  /**
-   * @brief This one reads Operation from stream in format
-   *  {id, "name", valueChange, "description"}. One of id, name can be ommited. Description also can be ommited. 
-   * 
-   * @param[in, out] opIO OperationIO struct that will contain data. 
-   * @return Stream to continue work with it.
-   */
-  TokenStream &operator>>(OperationIO &opIO);
-  /// @brief Skips line till newline symbol including or eof.
-  void skipRestLine();
-  /// @brief Checks if end of line was reached.
-  /// @return True if end of line was reached.
+  void read(CommandIO&);
+  /// @brief Reads in format {id, "name"}.
+  ///   One of args can be ommited.
+  /// @overload
+  void read(DebtorIO&);
+  /// @brief Reads in format {"name", intValue}.
+  ///   intValue can be ommited.
+  /// @overload
+  void read(NewDebtorIO&);
+  void read(DebtorNumIO&);
+  void read(OperationIO&);
+  void skipCurrentCommand();
   bool eol();
-  /// @brief Checks eof of given stream.
-  /// @return istream.eof()
   inline bool eof() {
     return in_.eof();
   }
-  /// @brief Checks fail of given stream.
-  /// @return istream.fail()
   inline bool fail() {
     return in_.fail();
   }
-  /// @brief Clears failbit of given stream.
   inline void clear() {
     in_.clear(in_.rdstate() & ~std::ios::failbit);
   }
-  /// @brief Checks if there anything to read on current line.
-  /// @return !(eof() || eol());
   operator bool();
 private:
+  std::string delimiters_ = "\n";
   std::istream &in_;
-  void readID(unsigned int &id, bool &readID);
-  void readString(std::string &name, bool &readString);
-  void readInt(int &value, bool &readInt);
+  bool readUnsignedInt(unsigned int &id);
+  bool readString(std::string &name);
+  bool readInt(int &value);
+  //Skips isspace(in.peek()) but new line
+  std::istream &skipWs();
+  bool isDelim(char ch);
+  /// @brief Sets failbit if condition true.
+  /// @param[in] condition Will be returned 
+  /// @return value of condition param
+  bool failIf(bool condition);
 };
 
 #endif

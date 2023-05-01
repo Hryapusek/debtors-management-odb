@@ -1,6 +1,5 @@
 #include "token_stream.hpp"
 #include <boost/regex.hpp>
-#include "ioctl.hpp"
 
 namespace
 {
@@ -9,215 +8,196 @@ namespace
     boost::regex ex("[a-zA-Zа-яА-Я]{2,20}");
     return boost::regex_match(name, ex);
   }
-
-  //Skips isspace(in.peek()) but new line
-  std::istream &skipWs(std::istream &in)
-  {
-    while (!in.fail() && !in.eof() && in.peek() != '\n' && isspace(in.peek()))
-      in.ignore(1);
-    return in;
-  }
-
 }
 
-TokenStream::operator bool()
+std::istream &TokenStream::skipWs()
 {
-  return !(eof() || eol());
-}
-
-TokenStream &TokenStream::operator>>(CommandIO cmd)
-{
-  if (std::ws(in_).eof())
-    return *this;
-  std::string tempCommand;
-  in_ >> tempCommand;
-  if (in_.fail())
-    return *this;
-  if (tempCommand[0] == '/')
-    tempCommand = tempCommand.substr(1);
-  cmd.command = std::move(tempCommand);
-  return *this;
-}
-
-TokenStream &TokenStream::operator>>(OperationIO &opIO)
-{
-  using del = DelimiterNoExtractIO;
-  skipWs(in_);
-  std::istream::sentry s(in_);
-  if (!s || in_.eof() || in_.peek() == '\n')
-  {
-    in_.setstate(std::ios::failbit);
-    return *this;
-  }
-  OperationIO tOpIO;
-  in_ >> del{ '{' };
-  bool isRead = false;
-  readID(tOpIO.id, isRead);
-  if (isRead)
-  {
-    tOpIO.readFields = tOpIO.readFields | tOpIO.ID;
-    in_ >> del{ ',' };
-  }
-  readString(tOpIO.name, isRead);
-  if (isRead)
-  {
-    tOpIO.readFields = tOpIO.readFields | tOpIO.NAME;
-    in_ >> del{ ',' };
-  }
-  if (!(tOpIO.readFields & (DebtorIO::ID | DebtorIO::NAME)))
-  {
-    in_.setstate(std::ios::failbit);
-    return *this;
-  }
-  readInt(tOpIO.valueChange, isRead);
-  if (!isRead)
-  {
-    in_.setstate(std::ios::failbit);
-    return *this;
-  }
-  tOpIO.readFields = tOpIO.readFields | tOpIO.VALUE;
-  if (in_.peek() == ',')
+  while (!in_.fail() && !in_.eof() && !isDelim(in_.peek()) && isspace(in_.peek()))
     in_.ignore(1);
-  readString(tOpIO.description, isRead);
-  if (isRead)
-    tOpIO.readFields = tOpIO.readFields | tOpIO.DECSRIPTION;
-  if (skipWs(in_).peek() != '}')
-  {
-    in_.setstate(std::ios::failbit);
-    return *this;
-  }
-  in_.ignore(1);
-  if (in_)
-    opIO = std::move(tOpIO);
-  return *this;
+  return in_;
 }
 
-TokenStream &TokenStream::operator>>(DebtorIO &dIO)
+bool TokenStream::isDelim(char ch)
 {
-  using del = DelimiterNoExtractIO;
-  skipWs(in_);
-  std::istream::sentry s(in_);
-  if (!s || in_.eof() || in_.peek() == '\n')
-  {
-    in_.setstate(std::ios::failbit);
-    return *this;
-  }
-  DebtorIO tDebtorIO;
-  in_ >> del{ '{' };
-  unsigned int id;
-  bool isRead = false;
-  readID(id, isRead);
-  if (isRead)
-  {
-    tDebtorIO.debtor.id(id);
-    tDebtorIO.readFields = tDebtorIO.readFields | tDebtorIO.ID;
-  }
-  if (in_.peek() == ',')
-    in_ >> del{ ',' }
-  ;
-  std::string name;
-  readString(name, isRead);
-  if (isRead)
-  {
-    tDebtorIO.debtor.name(name);
-    tDebtorIO.readFields = tDebtorIO.readFields | tDebtorIO.NAME;
-  }
-  if (!(tDebtorIO.readFields & (DebtorIO::ID | DebtorIO::NAME)))
-  {
-    in_.setstate(std::ios::failbit);
-    return *this;
-  }
-  if (in_.peek() == ',')
-  {
-    in_.ignore(1);
-    int debt;
-    readInt(debt, isRead);
-    if (isRead)
-    {
-      tDebtorIO.debtor.debt(debt);
-      tDebtorIO.readFields = tDebtorIO.readFields | tDebtorIO.DEBT;
-    }
-  }
-  if (skipWs(in_).peek() != '}')
-  {
-    in_.setstate(std::ios::failbit);
-    return *this;
-  }
-  in_.ignore(1);
-  if (in_)
-    dIO = tDebtorIO;
-  return *this;
+  return delimiters_.find_first_of(in_.peek()) != std::string::npos;
 }
 
-void TokenStream::skipRestLine()
+void TokenStream::skipCurrentCommand()
 {
-  while (!in_.eof() && in_.peek() != '\n')
+  while (!in_.eof() && !isDelim(in_.peek()))
     in_.ignore(1);
   in_.ignore(1);
 }
 
 bool TokenStream::eol()
 {
-  skipWs(in_);
-  return in_.peek() == '\n';
+  return isDelim(skipWs().peek());
 }
 
-void TokenStream::readString(std::string &name, bool &readString)
+bool TokenStream::readString(std::string &name)
 {
-  readString = false;
+  if (skipWs().peek() != '"')
+    return false;
   std::string tName;
-  skipWs(in_);
-  if (in_.peek() == '"')
+  in_.ignore(1);
+  char ch;
+  while (!in_.eof() && in_ && in_.peek() != '"' && !isDelim(in_.peek()))
   {
-    in_.ignore(1);
-    char ch;
-    while (!in_.eof() && in_ && in_.peek() != '"' && in_.peek() != '\n')
-    {
-      in_ >> ch;
-      tName.push_back(ch);
-    }
-    if (!in_ || in_.eof() || in_.peek() == '\n')
-    {
-      in_.setstate(std::ios::failbit);
-      return;
-    }
-    in_.ignore(1);
-    name = tName;
-    readString = true;
+    in_.get(ch);
+    tName.push_back(ch);
   }
+  if (failIf(!in_ || in_.eof() || isDelim(in_.peek())))
+    return false;
+  in_.ignore(1);
+  name = tName;
+  return true;
 }
 
-void TokenStream::readID(unsigned int &id, bool &readID)
+bool TokenStream::readUnsignedInt(unsigned int &id)
 {
-  readID = false;
+  if (!isdigit(skipWs().peek()))
+    return false;
   unsigned int tId;
-  skipWs(in_);
-  if (isdigit(in_.peek()))
-  {
-    in_ >> tId;
-    if (!in_)
-    {
-      in_.setstate(std::ios::failbit);
-      return;
-    }
-    id = tId;
-    readID = true;
-  }
+  in_ >> tId;
+  if (!in_)
+    return false;
+  id = tId;
+  return true;
 }
 
-void TokenStream::readInt(int &value, bool &readInt)
+bool TokenStream::readInt(int &value)
 {
-  readInt = false;
+  if (skipWs().peek() != '-' && !isdigit(in_.peek()))
+    return false;
   int tValue;
-  skipWs(in_);
-  if (isdigit(in_.peek()) || in_.peek() == '-')
-  {
-    in_ >> tValue;
-    if (!in_)
-    {
-      return;
-    }
-    value = tValue;
-    readInt = true;
-  }
+  in_ >> std::noskipws >> tValue >> std::skipws;
+  if (!in_)
+    return false;
+  value = tValue;
+  return true;
+}
+
+bool TokenStream::failIf(bool condition)
+{
+  if (condition)
+    in_.setstate(std::ios::failbit);
+  return condition;
+}
+
+void TokenStream::read(CommandIO &cmd)
+{
+  if (std::ws(in_).eof())
+    return;
+  std::string tempCommand;
+  in_ >> std::noskipws >> tempCommand >> std::skipws;
+  if (tempCommand[0] == '/')
+    tempCommand = tempCommand.substr(1);
+  cmd.command = std::move(tempCommand);
+  return;
+}
+
+void TokenStream::read(DebtorIO &d)
+{
+  using del = DelimiterNoExtractIO;
+  skipWs();
+  std::istream::sentry s(in_, true);
+  if (failIf(!s || in_.eof() || isDelim(in_.peek())))
+    return;
+  DebtorIO tDebtorIO;
+  in_ >> del{ '{' };
+  unsigned int id;
+  std::string name;
+  if (readUnsignedInt(id))
+    tDebtorIO.id = id;
+  if (skipWs().peek() == ',')
+    in_.ignore(1);
+  if (readString(name))
+    tDebtorIO.name = name;
+  if (failIf(!tDebtorIO.id.has_value() && !tDebtorIO.name.has_value()))
+    return;
+  if (failIf(skipWs().peek() != '}'))
+    return;
+  in_.ignore(1);
+  if (in_)
+    d = tDebtorIO;
+  return;
+}
+
+void TokenStream::read(NewDebtorIO &d)
+{
+  using del = DelimiterNoExtractIO;
+  skipWs();
+  std::istream::sentry s(in_, true);
+  if (failIf(!s || in_.eof() || isDelim(in_.peek())))
+    return;
+  NewDebtorIO tDebtorIO;
+  in_ >> del{ '{' };
+  std::string name;
+  int debt;
+  if (readString(name))
+    tDebtorIO.name = name;
+  if (failIf(!tDebtorIO.name.has_value()))
+    return;
+  if (skipWs().peek() == ',')
+    in_.ignore(1);
+  if (readInt(debt))
+    tDebtorIO.debt = debt;
+  if (failIf(skipWs().peek() != '}'))
+    return;
+  in_.ignore(1);
+  if (in_)
+    d = tDebtorIO;
+  return;
+}
+
+void TokenStream::read(DebtorNumIO &d)
+{
+  using del = DelimiterNoExtractIO;
+  skipWs();
+  std::istream::sentry s(in_, true);
+  if (failIf(!s || in_.eof() || isDelim(in_.peek())))
+    return;
+  in_ >> del{ '{' };
+  DebtorNumIO tDebtorIO;
+  read(tDebtorIO.debtor);
+  if (skipWs().peek() == ',')
+    in_.ignore(1);
+  unsigned int num;
+  if (readUnsignedInt(num))
+    tDebtorIO.num = num;
+  if (failIf(skipWs().peek() != '}'))
+    return;
+  in_.ignore(1);
+  if (in_)
+    d = tDebtorIO;
+  return;
+}
+
+void TokenStream::read(OperationIO &op)
+{
+  using del = DelimiterNoExtractIO;
+  skipWs();
+  std::istream::sentry s(in_, true);
+  if (failIf(!s || in_.eof() || isDelim(in_.peek())))
+    return;
+  in_ >> del{ '{' };
+  OperationIO tOperationIO;
+  read(tOperationIO.debtor);
+  if (skipWs().peek() == ',')
+    in_.ignore(1);
+  int valueChange;
+  if (failIf(!readInt(valueChange)))
+    return;
+  tOperationIO.valueChange = valueChange;
+  if (skipWs().peek() == ',')
+    in_.ignore(1);
+  std::string description;
+  if (readString(description))
+    tOperationIO.description = description;
+  if (failIf(skipWs().peek() != '}'))
+    return;
+  in_.ignore(1);
+  if (in_)
+    op = tOperationIO;
+  return;
 }
