@@ -6,7 +6,7 @@
 Json::Value readFromConfig()
 {
   Json::Value root;
-  std::ifstream ifs("/home/hryapusek/some_books/exercises/odb/debtors-managment-odb/config.json");
+  std::ifstream ifs("config.json");
   if (!ifs.is_open())
     throw std::logic_error("Can't open the file config.json");
   Json::CharReaderBuilder builder;
