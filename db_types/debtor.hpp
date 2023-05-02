@@ -68,6 +68,9 @@ public:
   */
   inline unsigned long id() const { return id_; }
 
+  /** 
+   * @brief Setter for id field.
+  */
   inline void id(unsigned long id) { id_ = id; }
 
 private:

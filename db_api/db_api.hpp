@@ -39,7 +39,7 @@ namespace api
   
   /**
    * @brief Gets vector of all Debtors from "Debtors" table. Can be empty.
-   * @throws Exceptions tied with database connection.
+   * @throws odb::exception tied with database connection.
    * @return Vector of all Debtors.
    * @ingroup database_api
    */
@@ -49,7 +49,7 @@ namespace api
    * @ingroup database_api
    * @brief Gets debtor by \b name from "Debtors" table.
    *
-   * @throws Exceptions tied with database connection.
+   * @throws odb::exception tied with database connection.
    * @param[in] name Name that have to be found.
    * @return If exists returns Debtor with this name, otherwise boost::none.
    */
@@ -78,7 +78,7 @@ namespace api
    * @brief Tries to remove debtor with given name.
    *
    * @throws api::debtor_not_found if debtor with given name not found.
-   * @throws Other exceptions tied with database connection.
+   * @throws odb::exception tied with database connection.
    *
    * @param[in] name Name of the debtor to remove.
    */
@@ -99,7 +99,7 @@ namespace api
    *
    * @throws - api::debtor_not_found if debtor with given name not found.
    * @throws - odb::database_exception if val == 0.
-   * @throws - Other exceptions tied with database connection.
+   * @throws - odb::exception tied with database connection.
    *
    * @param name Name of debtor whos debt changed.
    * @param val Value to be added to debtor's debt.

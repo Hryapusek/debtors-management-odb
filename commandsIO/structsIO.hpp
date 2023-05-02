@@ -2,12 +2,19 @@
 #define STRUCTSIO_HPP
 #include "../db_types/debtor.hpp"
 #include <boost/optional.hpp>
+/**
+ * @defgroup commands Commands processing
+ *    This group contains module that controls database 
+ *      using commands and args from TokenStreamInterface.  
+ */
 
 /**
- * @ingroup ioctl
- * @brief
+ * @ingroup commands
+ * @brief This struct is used to get already persist person.
+ * @note  Minimum \b one field expected to be initialized.
+ *    
  *
- * @see
+ * @see @ref TokenStreamInterface [read](@ref TokenStreamInterface::read(DebtorIO&)) operation.
  */
 struct DebtorIO
 {
@@ -15,17 +22,38 @@ struct DebtorIO
   boost::optional< std::string > name;
 };
 
+/**
+ * @ingroup commands
+ * @brief This struct is used to get a person to be crated in table.
+ * @note  Field \b name expected to be initialized.
+ * @note  Field \b debt can be uninitialized.
+ *
+ * @see @ref TokenStreamInterface [read](@ref TokenStreamInterface::read(NewDebtorIO&)) operation.
+ */
 struct NewDebtorIO
 {
   boost::optional< std::string > name;
   boost::optional< int > debt;
 };
 
+/**
+ * @ingroup commands
+ * @brief This struct is used to get next command stream.
+ * @note If EOF met - field command must be uninitialized. Failbit should not be set.
+ *
+ * @see @ref TokenStreamInterface [read](@ref TokenStreamInterface::read(CommandIO&)) operation.
+ */
 struct CommandIO
 {
   boost::optional< std::string > command;
 };
 
+/**
+ * @ingroup commands
+ * @brief This struct is used to get DebtorIO and RepeatCount for /history command.
+ * @note Field num can be uninitialized.
+ * @see @ref TokenStreamInterface [read](@ref TokenStreamInterface::read(DebtorNumIO&)) operation.
+ */
 struct DebtorNumIO
 {
   DebtorIO debtor;
@@ -33,18 +61,17 @@ struct DebtorNumIO
 };
 
 /**
- * @ingroup ioctl
- *
- * @brief
- *
- * @details
+ * @ingroup commands
+ * @brief This struct is used to get DebtorIO, valueChange and description
+ *      for addVal command. Basicly it contains operation details. 
+ *      Whos debt was changed. 
+ * @note Field description can be uninitialized.
+ * @see @ref TokenStreamInterface [read](@ref TokenStreamInterface::read(DebtorNumIO&)) operation.
  */
 struct OperationIO
 {
   DebtorIO debtor;
-  /// @brief Value that debt was changed.
   int valueChange;
-  /// @brief Additional info about operation.
   std::string description;
 };
 #endif
