@@ -313,6 +313,7 @@ void processInput(TokenStreamInterface &ts, std::ostream &out)
     { "rm", std::bind(removeDebtor, std::ref(ts), std::ref(out)) },
     { "addval", std::bind(addValue, std::ref(ts), std::ref(out)) },
     { "hist", std::bind(history, std::ref(ts), std::ref(out)) },
+    { "rollback", std::bind(rollback, std::ref(ts), std::ref(out)) },
   };
   help(out);
   while (!ts.eof())
