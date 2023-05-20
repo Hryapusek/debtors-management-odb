@@ -31,9 +31,12 @@ If you have any questions about this one - vk.com/ezhiklisiy.<br />
 
 ### For Linux only.
 
-Firstly, you go to **db_types/** and use `make` in here. Two `.sql` files and some other will be generated. You have to create tables respectively to this files. Next you specify in config.json file your database information.<br /><br />
-Secondly, go to root directory and `make` here. Binary file with name **main** will be generated if success.
-Now you can start it.
+**config.cpp** file contains config path. I haven't decided yet how to pass config path in program, so it must be hardcoded for some time)))))<br />Create a `build` directory and move into it. Run `cmake -S .. -B .` to create executable called `DEBTORS_MANAGEMENT`. **db_types** directory will 
+contain two .sql files with tables that have to exist in your database in order to program would work. After this you can start program using 
+your terminal.
+
+### Note
+Soon database will be in docker container and this program will become system independent. Thanks to CMAKE developers!
 
 ## About code
 Program splitted into 3 modules:
