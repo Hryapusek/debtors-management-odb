@@ -1,4 +1,4 @@
-# debtors-managment-cpp-prog
+# debtors-management-cpp-prog
 
 ## About program
 If you have a lot of your friends who owe you some money, and you want to manipulate them easily and dont want to spend a lot of time on installation some hard-weight program - this one exactly for you. You can create debtors, add values to their debts, check perfomed operations and more cool things.<br /> <br /> 
